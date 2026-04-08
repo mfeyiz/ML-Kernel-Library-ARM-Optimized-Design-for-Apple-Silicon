@@ -1,0 +1,25 @@
+# Build artifacts
+build/
+*.so
+*.a
+*.o
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Benchmark results
+benchmark_results.txt
