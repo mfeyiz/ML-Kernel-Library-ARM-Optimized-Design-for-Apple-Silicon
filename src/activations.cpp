@@ -2,8 +2,8 @@
 #include <arm_neon.h>
 #include <algorithm>
 #include <cmath>
-#include <thread>
 #include <vector>
+#include <dispatch/dispatch.h>
 
 namespace hwml {
 
@@ -99,73 +99,40 @@ void sigmoid_neon(float* X, int size) {
 }
 
 void relu_mt(float* X, int size) {
-    unsigned int max_threads = std::thread::hardware_concurrency();
-    if (max_threads == 0) max_threads = 1;
-    
-    unsigned int num_threads = std::min(max_threads, 8u);
-    
-    if (size < 10000 || num_threads == 1) {
+    if (size < 10000) {
         relu_neon(X, size);
         return;
     }
     
-    std::vector<std::thread> threads;
+    // Core limit heuristical tuning for Apple Silicon
+    size_t num_chunks = 16;
+    size_t chunk_size = (size + num_chunks - 1) / num_chunks;
     
-    int chunk_size = size / num_threads;
-    int remainder = size % num_threads;
-    
-    int current = 0;
-    for (unsigned int t = 0; t < num_threads; ++t) {
-        int start = current;
-        int end = start + chunk_size + (t < remainder ? 1 : 0);
-        current = end;
-        
-        int start_copy = start;
-        int end_copy = end;
-        
-        threads.push_back(std::thread([=]() {
-            relu_neon(X + start_copy, end_copy - start_copy);
-        }));
-    }
-    
-    for (auto& th : threads) {
-        th.join();
-    }
+    dispatch_apply(num_chunks, dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^(size_t t) {
+        size_t start = t * chunk_size;
+        size_t end = std::min(start + chunk_size, static_cast<size_t>(size));
+        if (start < end) {
+            relu_neon(X + start, end - start);
+        }
+    });
 }
 
 void sigmoid_mt(float* X, int size) {
-    unsigned int max_threads = std::thread::hardware_concurrency();
-    if (max_threads == 0) max_threads = 1;
-    
-    unsigned int num_threads = std::min(max_threads, 8u);
-    
-    if (size < 10000 || num_threads == 1) {
+    if (size < 10000) {
         sigmoid_neon(X, size);
         return;
     }
     
-    std::vector<std::thread> threads;
+    size_t num_chunks = 16;
+    size_t chunk_size = (size + num_chunks - 1) / num_chunks;
     
-    int chunk_size = size / num_threads;
-    int remainder = size % num_threads;
-    
-    int current = 0;
-    for (unsigned int t = 0; t < num_threads; ++t) {
-        int start = current;
-        int end = start + chunk_size + (t < remainder ? 1 : 0);
-        current = end;
-        
-        int start_copy = start;
-        int end_copy = end;
-        
-        threads.push_back(std::thread([=]() {
-            sigmoid_neon(X + start_copy, end_copy - start_copy);
-        }));
-    }
-    
-    for (auto& th : threads) {
-        th.join();
-    }
+    dispatch_apply(num_chunks, dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^(size_t t) {
+        size_t start = t * chunk_size;
+        size_t end = std::min(start + chunk_size, static_cast<size_t>(size));
+        if (start < end) {
+            sigmoid_neon(X + start, end - start);
+        }
+    });
 }
 
 } // namespace hwml

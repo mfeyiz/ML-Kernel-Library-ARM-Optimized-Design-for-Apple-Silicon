@@ -193,3 +193,45 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+def test_rectangular_gemm():
+    print("\n=== Rectangular GEMM Tests ===")
+    
+    shapes = [
+        (128, 64, 256),
+        (64, 256, 128),
+        (256, 128, 64),
+        (63, 65, 67), # Odd shapes
+    ]
+    
+    passed = True
+    for M, K, N in shapes:
+        A = np.random.rand(M, K).astype(np.float32)
+        B = np.random.rand(K, N).astype(np.float32)
+        
+        C_ref = np.dot(A, B)
+        
+        C_naive = arm_gemm_apple.gemm_naive(A, B)
+        C_tiled = arm_gemm_apple.gemm_tiled(A, B)
+        C_neon  = arm_gemm_apple.gemm_neon(A, B)
+        C_mt    = arm_gemm_apple.gemm_mt(A, B)
+        
+        diff_naive = np.max(np.abs(C_naive - C_ref))
+        diff_tiled = np.max(np.abs(C_tiled - C_ref))
+        diff_neon  = np.max(np.abs(C_neon - C_ref))
+        diff_mt    = np.max(np.abs(C_mt - C_ref))
+        
+        if max(diff_naive, diff_tiled, diff_neon, diff_mt) > 1e-4:
+            print(f"  ✗ Rectangular {M}x{K}x{N} failed!")
+            print(f"      diffs: naive={diff_naive:.2e}, tiled={diff_tiled:.2e}, neon={diff_neon:.2e}, mt={diff_mt:.2e}")
+            passed = False
+        else:
+            print(f"  ✓ Rectangular {M}x{K}x{N} correct")
+            
+    if passed:
+        print("  ✓ All rectangular tests passed!")
+    else:
+        print("  ✗ Some rectangular tests failed!")
+        sys.exit(1)
+
+test_rectangular_gemm()

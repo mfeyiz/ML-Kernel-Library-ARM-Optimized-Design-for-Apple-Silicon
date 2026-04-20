@@ -37,25 +37,25 @@ int main() {
         
         std::vector<float> C_naive(N * N, 0.0f);
         auto start_naive = std::chrono::high_resolution_clock::now();
-        hwml::gemm_naive(A.data(), B.data(), C_naive.data(), N);
+        hwml::gemm_naive(A.data(), B.data(), C_naive.data(), N, N, N);
         auto end_naive = std::chrono::high_resolution_clock::now();
         double time_naive = std::chrono::duration<double, std::milli>(end_naive - start_naive).count();
         
         std::vector<float> C_tiled(N * N, 0.0f);
         auto start_tiled = std::chrono::high_resolution_clock::now();
-        hwml::gemm_tiled(A.data(), B.data(), C_tiled.data(), N);
+        hwml::gemm_tiled(A.data(), B.data(), C_tiled.data(), N, N, N);
         auto end_tiled = std::chrono::high_resolution_clock::now();
         double time_tiled = std::chrono::duration<double, std::milli>(end_tiled - start_tiled).count();
         
         std::vector<float> C_neon(N * N, 0.0f);
         auto start_neon = std::chrono::high_resolution_clock::now();
-        hwml::gemm_neon(A.data(), B.data(), C_neon.data(), N);
+        hwml::gemm_neon(A.data(), B.data(), C_neon.data(), N, N, N);
         auto end_neon = std::chrono::high_resolution_clock::now();
         double time_neon = std::chrono::duration<double, std::milli>(end_neon - start_neon).count();
         
         std::vector<float> C_mt(N * N, 0.0f);
         auto start_mt = std::chrono::high_resolution_clock::now();
-        hwml::gemm_mt(A.data(), B.data(), C_mt.data(), N);
+        hwml::gemm_mt(A.data(), B.data(), C_mt.data(), N, N, N);
         auto end_mt = std::chrono::high_resolution_clock::now();
         double time_mt = std::chrono::duration<double, std::milli>(end_mt - start_mt).count();
         

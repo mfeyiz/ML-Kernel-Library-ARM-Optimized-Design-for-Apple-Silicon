@@ -30,7 +30,7 @@ int main() {
         7.0f, 16.0f, 27.0f
     };
     
-    hwml::gemm_naive(A.data(), B.data(), C.data(), N);
+    hwml::gemm_naive(A.data(), B.data(), C.data(), N, N, N);
     
     bool passed = true;
     for (int i = 0; i < N * N; ++i) {
@@ -46,7 +46,7 @@ int main() {
     }
     
     std::vector<float> C2(N * N, 0.0f);
-    hwml::gemm_tiled(A.data(), B.data(), C2.data(), N);
+    hwml::gemm_tiled(A.data(), B.data(), C2.data(), N, N, N);
     
     bool passed2 = true;
     for (int i = 0; i < N * N; ++i) {
@@ -62,7 +62,7 @@ int main() {
     }
     
     std::vector<float> C3(N * N, 0.0f);
-    hwml::gemm_neon(A.data(), B.data(), C3.data(), N);
+    hwml::gemm_neon(A.data(), B.data(), C3.data(), N, N, N);
     
     bool passed3 = true;
     for (int i = 0; i < N * N; ++i) {
@@ -78,7 +78,7 @@ int main() {
     }
     
     std::vector<float> C4(N * N, 0.0f);
-    hwml::gemm_mt(A.data(), B.data(), C4.data(), N);
+    hwml::gemm_mt(A.data(), B.data(), C4.data(), N, N, N);
     
     bool passed4 = true;
     for (int i = 0; i < N * N; ++i) {

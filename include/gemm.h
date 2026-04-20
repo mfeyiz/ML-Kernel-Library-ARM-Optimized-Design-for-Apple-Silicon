@@ -1,15 +1,18 @@
 #ifndef GEMM_H
 #define GEMM_H
 
-// Expects 1D flat C-contiguous arrays (NumPy compatible).
-// Memory layout: row-major (row * N + col)
+#include <cstddef>
 
 namespace hwml {
 
-void gemm_naive(const float* A, const float* B, float* C, int N);
-void gemm_tiled(const float* A, const float* B, float* C, int N);
-void gemm_neon(const float* A, const float* B, float* C, int N);
-void gemm_mt(const float* A, const float* B, float* C, int N);
+size_t get_cache_size();
+
+void gemm_naive(const float* A, const float* B, float* C, size_t M, size_t K, size_t N, float alpha = 1.0f, float beta = 0.0f);
+void gemm_tiled(const float* A, const float* B, float* C, size_t M, size_t K, size_t N, float alpha = 1.0f, float beta = 0.0f);
+void gemm_neon(const float* A, const float* B, float* C, size_t M, size_t K, size_t N, float alpha = 1.0f, float beta = 0.0f);
+void gemm_mt(const float* A, const float* B, float* C, size_t M, size_t K, size_t N, float alpha = 1.0f, float beta = 0.0f);
+
+void gemm(const float* A, const float* B, float* C, size_t M, size_t K, size_t N, float alpha = 1.0f, float beta = 0.0f);
 
 } // namespace hwml
 

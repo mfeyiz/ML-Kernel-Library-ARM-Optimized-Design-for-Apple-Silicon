@@ -20,6 +20,8 @@ add_library(hwml_kernels STATIC
     src/gemm_tiled.cpp
     src/gemm_neon.cpp
     src/gemm_mt.cpp
+    src/gemm_fp16.cpp
+    src/cache_utils.cpp
     src/activations.cpp
 )
 
@@ -32,6 +34,7 @@ target_compile_options(hwml_kernels PRIVATE
     -std=c++17
     -O3
     -mcpu=apple-m1
+    -flax-vector-conversions=all
 )
 
 # Python module
@@ -41,6 +44,8 @@ pybind11_add_module(arm_gemm_apple
     src/gemm_tiled.cpp
     src/gemm_neon.cpp
     src/gemm_mt.cpp
+    src/gemm_fp16.cpp
+    src/cache_utils.cpp
     src/activations.cpp
 )
 
