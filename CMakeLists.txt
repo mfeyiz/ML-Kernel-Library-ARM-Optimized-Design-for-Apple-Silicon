@@ -8,6 +8,9 @@ set(CMAKE_CXX_FLAGS_INIT "-O3 -mcpu=apple-m1")
 set(CMAKE_CXX_FLAGS_DEBUG "-g -fsanitize=address")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -mcpu=apple-m1")
 
+# Apple Accelerate framework (BLAS)
+find_library(ACCELERATE_FRAMEWORK Accelerate REQUIRED)
+
 find_package(OpenMP)
 if(OpenMP_CXX_FOUND)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
@@ -20,10 +23,13 @@ add_library(hwml_kernels STATIC
     src/gemm_tiled.cpp
     src/gemm_neon.cpp
     src/gemm_mt.cpp
+    src/gemm_accelerate.cpp
     src/gemm_fp16.cpp
     src/cache_utils.cpp
     src/activations.cpp
 )
+
+target_link_libraries(hwml_kernels PUBLIC ${ACCELERATE_FRAMEWORK})
 
 target_include_directories(hwml_kernels PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -44,10 +50,13 @@ pybind11_add_module(arm_gemm_apple
     src/gemm_tiled.cpp
     src/gemm_neon.cpp
     src/gemm_mt.cpp
+    src/gemm_accelerate.cpp
     src/gemm_fp16.cpp
     src/cache_utils.cpp
     src/activations.cpp
 )
+
+target_link_libraries(arm_gemm_apple PRIVATE ${ACCELERATE_FRAMEWORK})
 
 target_include_directories(arm_gemm_apple PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include

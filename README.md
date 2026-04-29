@@ -1,78 +1,158 @@
-# ML Kernel Library - ARM Optimized Design for Apple Silicon
+# arm_gemm_apple
 
-## Overview
-This project provides a hardware-aware Machine Learning kernel library optimized specifically for Apple Silicon (M-series) architecture. It focuses on highly efficient General Matrix Multiplication (GEMM) operations and common activation functions utilizing ARM NEON SIMD instructions, optimal cache management with data packing, and Apple's Grand Central Dispatch (GCD) for concurrency. 
+Hardware-aware ML kernel library for Apple Silicon (CPU-side).
 
-The library exposes a C++ API alongside Python bindings (via Pybind11), allowing seamless integration into higher-level machine learning frameworks.
+This repository implements several FP32 GEMM paths and a small set of activation
+kernels. It is designed for demo and research-style evaluation on Apple Silicon
+macOS systems where the publicly programmable SIMD target is ARM NEON.
 
-## Features
-- **ARM NEON Microkernels**: Utilizes `arm_neon.h` intrinsics in a 4x4 register-blocked architecture with loop unrolling for high-throughput FMA (Fused Multiply-Add) operations.
-- **Grand Central Dispatch (GCD)**: Employs `dispatch_apply` for asymmetric core-aware thread distribution, replacing standard `std::thread` overheads.
-- **Arbitrary Rectangular Matrices**: All routines natively support fully unconstrained M, K, N matrix dimensions for inputs $A \in \mathbb{R}^{M \times K}$, $B \in \mathbb{R}^{K \times N}$, and output $C \in \mathbb{R}^{M \times N}$.
-- **Advanced Cache Blocking & Data Packing**: Memory access layouts are optimized by packing blocks of A and B dynamically into contiguous data segments, significantly reducing TLB misses and L1/L2 cache evictions during computation.
-- **Production-Ready Python Bindings**: Zero-copy data handling and robust validation schemas guarantee safety against memory leaks and invalid rank/dimension arguments on the Python side.
+An explicit Apple Accelerate (BLAS) path is included as a practical upper-bound
+reference. It is not treated as a like-for-like “NEON-only” comparison.
 
-## System Requirements
-- Apple Silicon Host (M1/M2/M3 CPU preferred)
-- macOS 12.0+ (Requires `<dispatch/dispatch.h>`)
-- Clang/LLVM with standard C++17 support
-- CMake >= 3.15
-- Pybind11 (for Python integration)
+## What’s inside
 
-## Build Instructions
-An out-of-source CMake build is recommended:
+### GEMM (FP32)
+
+All C++ GEMM entry points support general rectangular shapes:
+`A (M×K) @ B (K×N) -> C (M×N)`.
+
+- `hwml::gemm_naive`: simple baseline loop nest with NEON vectorization in the
+	inner `j` dimension.
+- `hwml::gemm_tiled`: cache-blocked GEMM with on-the-fly packing of A and B
+	panels into contiguous buffers.
+- `hwml::gemm_neon`: blocked GEMM with explicit NEON `vld1q_f32`/`vmlaq_f32`.
+- `hwml::gemm_mt`: multi-threaded GEMM using Grand Central Dispatch
+	(`dispatch_apply`) over M-tiles.
+- `hwml::gemm_accelerate`: Apple Accelerate / CBLAS `cblas_sgemm` reference.
+- `hwml::gemm`: simple auto-select (prefers MT for larger problems).
+
+Alpha/beta are supported in the C++ API:
+
+`C = alpha * A @ B + beta * C`
+
+### Activations (FP32, in-place)
+
+- ReLU: `hwml::relu_neon`, `hwml::relu_mt`
+- Sigmoid (approx exp): `hwml::sigmoid_neon`, `hwml::sigmoid_mt`
+
+## Build requirements
+
+- Apple Silicon host (arm64)
+- macOS 12+
+- Xcode Command Line Tools / Apple clang
+- CMake 3.15+
+- Python + pybind11 (CMake finds your installed pybind11)
+
+OpenMP is optional; this repo uses GCD for threading.
+
+## Build (CMake)
+
+Out-of-source build:
 
 ```bash
-mkdir build
-cd build
-cmake -DCMAKE_BUILD_TYPE=Release ..
-make -j$(sysctl -n hw.ncpu)
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j "$(sysctl -n hw.ncpu)"
 ```
 
-The output will include:
-- `libhwml_kernels.a`: Static library containing the core logic.
-- `arm_gemm_apple.*.so`: Compiled Python bindings module.
-- `test_gemm`, `test_activations`, `bench_gemm`, `bench_activations`: Executable test binaries and benchmarks.
+Build outputs (examples):
 
-## Running Tests
-C++ Unit Tests and Benchmarks:
+- `build/libhwml_kernels.a`
+- `build/arm_gemm_apple.*.so` (Python extension module)
+- `build/test_gemm`, `build/test_activations`
+- `build/bench_gemm`, `build/bench_activations`
+
+## Run correctness tests
+
+### C++ tests
+
 ```bash
 ./build/test_gemm
 ./build/test_activations
-./build/bench_gemm
-./build/bench_activations
 ```
 
-Python Binding Tests:
+### Python binding test suite
+
 ```bash
 PYTHONPATH=build python3 tests/test_python_bridge.py
 ```
 
-## Python API Usage
+## Demo: run benchmarks and produce a single report file
 
-```python
-import numpy as np
-import arm_gemm_apple
+The easiest demo path is the Python benchmark script, which writes a single
+`benchmark_results.txt` file containing:
 
-# Matrix Multiplication
-M, K, N = 1200, 800, 1600
-A = np.random.rand(M, K).astype(np.float32)
-B = np.random.rand(K, N).astype(np.float32)
+1) GEMM timing table (includes `gemm_accelerate` and NumPy)
+2) ML demo output (`tests/ml_demo.py`) appended under the table
 
-# Dispatches an optimized execution depending on matrix dimensions
-C = arm_gemm_apple.gemm_mt(A, B, alpha=1.0, beta=0.0)
+Run:
 
-# Activation Functions (In-Place Modifications)
-X = np.random.randn(1000, 1000).astype(np.float32)
-arm_gemm_apple.relu_mt(X)
-arm_gemm_apple.sigmoid_mt(X)
+```bash
+PYTHONPATH=build python3 tests/benchmark_only.py
+cat benchmark_results.txt
 ```
 
-## Internal Architecture
-1. **gemm_naive**: Reference implementation.
-2. **gemm_tiled**: Implements 64x64 parameter blocking with on-the-fly data re-packing (paneling) into contiguous memory regions.
-3. **gemm_neon**: Integrates a 4x4 inner loop SIMD processing model.
-4. **gemm_mt**: Leverages `dispatch_get_global_queue` to schedule dynamically partitioned block workloads onto available physical processing queues. 
+## C++ benchmark (with Instruments-friendly signposts)
 
-## Contribution and Extension
-When extending the code, adhere to modern C++17 memory conventions and Pybind11 reference counting rules. Ensure any algorithm tuning utilizes `size_t` for indexing to avoid 32-bit overflow on excessive tensor allocations.
+The C++ GEMM benchmark prints a table and emits `os_signpost` intervals around
+each kernel call so you can isolate counters per-kernel in Instruments.
+
+Run:
+
+```bash
+./build/bench_gemm
+```
+
+### Measuring cache misses / counters (recommended)
+
+On macOS, the cleanest way to report cache behavior is Instruments Counters,
+scoped to the signpost intervals:
+
+1) Open Instruments
+2) Choose the “Counters” template (or a CPU counters template available)
+3) Launch `build/bench_gemm`
+4) Filter by subsystem/category `hwml / bench_gemm`
+5) Select the signpost interval for the kernel you want (e.g. `gemm_mt`)
+6) Read L1/L2 miss metrics, cycles, instructions for that time range
+
+This approach avoids unreliable ad-hoc “cache hit/miss” estimates inside code.
+
+## Notes on interpreting Accelerate results
+
+- `numpy` on Apple Silicon typically uses Accelerate-backed BLAS.
+- `hwml::gemm_accelerate` calls Accelerate BLAS directly.
+- Treat these as a practical ceiling reference, not a NEON-only baseline.
+
+## Python API notes (important for demos)
+
+- GEMM functions return a new output array `C`.
+- The Python wrappers currently allocate `C` as zeros before calling the C++
+	kernels. That means `beta` has no effect in Python today (because it scales a
+	zero-initialized `C`).
+- In C++ (pointer API), `beta` behaves as expected because you control the input
+	contents of `C`.
+
+## File layout
+
+```text
+include/
+	gemm.h
+	activations.h
+src/
+	gemm_naive.cpp
+	gemm_tiled.cpp
+	gemm_neon.cpp
+	gemm_mt.cpp
+	gemm_accelerate.cpp
+	activations.cpp
+	bindings.cpp
+	cache_utils.cpp
+benchmarks/
+	bench_gemm.cpp
+	bench_activations.cpp
+tests/
+	test_gemm.cpp
+	test_activations.cpp
+	test_python_bridge.py
+	benchmark_only.py
+	ml_demo.py
+```

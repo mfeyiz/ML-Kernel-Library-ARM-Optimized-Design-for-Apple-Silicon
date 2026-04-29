@@ -12,6 +12,10 @@ def benchmark_function(func, *args, warmup=1, iterations=3, **kwargs):
     for _ in range(iterations):
         result = func(*args, **kwargs)
     elapsed = (time.perf_counter() - start) / iterations
+    # Some kernels (e.g., activations) are in-place and return None in Python.
+    # For those, return the mutated first argument so callers can chain results.
+    if result is None and len(args) > 0:
+        return elapsed, args[0]
     return elapsed, result
 
 
@@ -24,11 +28,20 @@ def test_square_gemm():
 
     sizes = [64, 128, 256, 512, 1024]
 
-    print(
-        "\n{:>6} {:>10} {:>10} {:>10} {:>10} {:>10}".format(
-            "N", "naive", "tiled", "neon", "mt", "numpy"
+    has_accel = hasattr(hwml, "gemm_accelerate")
+
+    if has_accel:
+        print(
+            "\n{:>6} {:>10} {:>10} {:>10} {:>10} {:>10} {:>10}".format(
+                "N", "naive", "tiled", "neon", "mt", "accel", "numpy"
+            )
         )
-    )
+    else:
+        print(
+            "\n{:>6} {:>10} {:>10} {:>10} {:>10} {:>10}".format(
+                "N", "naive", "tiled", "neon", "mt", "numpy"
+            )
+        )
     print("-" * 65)
 
     for N in sizes:
@@ -39,13 +52,23 @@ def test_square_gemm():
         t_tiled, _ = benchmark_function(hwml.gemm_tiled, A, B)
         t_neon, _ = benchmark_function(hwml.gemm_neon, A, B)
         t_mt, _ = benchmark_function(hwml.gemm_mt, A, B)
+        t_accel = None
+        if has_accel:
+            t_accel, _ = benchmark_function(hwml.gemm_accelerate, A, B)
         t_np, _ = benchmark_function(lambda a, b: a @ b, A, B)
 
-        print(
-            "{:>6} {:>9.3f}s {:>9.3f}s {:>9.3f}s {:>9.3f}s {:>9.3f}s".format(
-                N, t_naive, t_tiled, t_neon, t_mt, t_np
+        if has_accel:
+            print(
+                "{:>6} {:>9.3f}s {:>9.3f}s {:>9.3f}s {:>9.3f}s {:>9.3f}s {:>9.3f}s".format(
+                    N, t_naive, t_tiled, t_neon, t_mt, t_accel, t_np
+                )
             )
-        )
+        else:
+            print(
+                "{:>6} {:>9.3f}s {:>9.3f}s {:>9.3f}s {:>9.3f}s {:>9.3f}s".format(
+                    N, t_naive, t_tiled, t_neon, t_mt, t_np
+                )
+            )
 
     return True
 
@@ -92,20 +115,21 @@ def test_alpha_beta():
     N = 512
     A = np.random.randn(N, N).astype(np.float32)
     B = np.random.randn(N, N).astype(np.float32)
-    C = np.random.randn(N, N).astype(np.float32)
-
     print("\nTesting C = alpha * A @ B + beta * C")
 
     alpha = 0.5
     beta = 0.3
 
-    result = hwml.gemm(A, B, alpha=alpha, beta=beta)
-    expected = alpha * (A @ B) + beta * C
+    # Current Python API returns a fresh C and does not accept an input C buffer.
+    # So beta has no effect (it would scale an all-zero initial C).
+    result_beta0 = hwml.gemm(A, B, alpha=alpha, beta=0.0)
+    result_betaX = hwml.gemm(A, B, alpha=alpha, beta=beta)
+    expected = alpha * (A @ B)
 
-    if np.allclose(result, expected, atol=1e-4):
-        print("✓ Alpha/beta computation correct!")
+    if np.allclose(result_beta0, expected, atol=1e-4) and np.allclose(result_betaX, expected, atol=1e-4):
+        print("✓ Alpha scaling correct (beta is ignored for fresh-output GEMM)")
     else:
-        print("✗ Alpha/beta computation FAILED")
+        print("✗ Alpha/beta test FAILED")
         return False
 
     return True

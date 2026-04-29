@@ -43,35 +43,6 @@ static void validate_activation_input(py::array& X) {
     }
 }
 
-static py::array_t<float> flatten_array(py::array& X) {
-    auto buf = X.request();
-    size_t total_size = 1;
-    for (size_t i = 0; i < buf.ndim; ++i) {
-        total_size *= buf.shape[i];
-    }
-    
-    py::array_t<float> result({static_cast<long>(total_size)});
-    auto out_buf = result.request();
-    
-    float* src = static_cast<float*>(buf.ptr);
-    float* dst = static_cast<float*>(out_buf.ptr);
-    std::copy(src, src + total_size, dst);
-    
-    return result;
-}
-
-static py::array_t<float> reshape_to_2d(py::array& X, size_t rows, size_t cols) {
-    py::array_t<float> result({static_cast<long>(rows), static_cast<long>(cols)});
-    auto out_buf = result.request();
-    
-    auto in_buf = X.request();
-    float* src = static_cast<float*>(in_buf.ptr);
-    float* dst = static_cast<float*>(out_buf.ptr);
-    std::copy(src, src + rows * cols, dst);
-    
-    return result;
-}
-
 // ============ GEMM Wrappers ============
 
 Array<float> gemm_naive_wrapper(const Array<float>& A, const Array<float>& B, float alpha = 1.0f, float beta = 0.0f) {
@@ -146,7 +117,38 @@ Array<float> gemm_mt_wrapper(const Array<float>& A, const Array<float>& B, float
     return C;
 }
 
-Array<float> gemm_auto_wrapper(const Array<float>& A, const Array<float>& B, float alpha = 1.0f, float beta = 0.0f, size_t threshold = 1024) {
+Array<float> gemm_accelerate_wrapper(const Array<float>& A,
+                                    const Array<float>& B,
+                                    float alpha = 1.0f,
+                                    float beta = 0.0f) {
+    validate_gemm_input(A, B);
+    auto bufA = A.request();
+    auto bufB = B.request();
+    size_t M = (bufA.ndim == 1) ? 1 : bufA.shape[0];
+    size_t K = (bufA.ndim == 1) ? bufA.size : bufA.shape[1];
+    size_t N = (bufB.ndim == 1) ? bufB.size : bufB.shape[1];
+
+    Array<float> C = py::array_t<float, py::array::c_style | py::array::forcecast>(
+        {static_cast<long>(M), static_cast<long>(N)});
+    auto bufC = C.request();
+    std::fill_n(static_cast<float*>(bufC.ptr), M * N, 0.0f);
+
+    hwml::gemm_accelerate(static_cast<const float*>(bufA.ptr),
+                          static_cast<const float*>(bufB.ptr),
+                          static_cast<float*>(bufC.ptr),
+                          M,
+                          K,
+                          N,
+                          alpha,
+                          beta);
+    return C;
+}
+
+Array<float> gemm_auto_wrapper(const Array<float>& A,
+                               const Array<float>& B,
+                               float alpha = 1.0f,
+                               float beta = 0.0f,
+                               size_t threshold = 1024) {
     validate_gemm_input(A, B);
     auto bufA = A.request();
     size_t M = bufA.shape[0];
@@ -222,6 +224,8 @@ PYBIND11_MODULE(arm_gemm_apple, m) {
           py::arg("A"), py::arg("B"), py::arg("alpha") = 1.0f, py::arg("beta") = 0.0f);
     m.def("gemm_mt", &gemm_mt_wrapper, "Multi-threaded GEMM (default for large matrices)",
           py::arg("A"), py::arg("B"), py::arg("alpha") = 1.0f, py::arg("beta") = 0.0f);
+        m.def("gemm_accelerate", &gemm_accelerate_wrapper, "Accelerate/CBLAS GEMM reference (upper-bound baseline)",
+            py::arg("A"), py::arg("B"), py::arg("alpha") = 1.0f, py::arg("beta") = 0.0f);
     m.def("gemm", &gemm_auto_wrapper, "Auto-select GEMM based on matrix size",
           py::arg("A"), py::arg("B"), py::arg("alpha") = 1.0f, py::arg("beta") = 0.0f, py::arg("threshold") = 1024);
     m.def("gemm_auto", &gemm_auto_wrapper, "Auto-select GEMM based on matrix size",

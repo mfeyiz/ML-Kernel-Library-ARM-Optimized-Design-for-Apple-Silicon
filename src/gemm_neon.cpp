@@ -5,33 +5,6 @@
 
 namespace hwml {
 
-// 4x4 microkernel
-static inline void ker_4x4(const float* A, const float* B, float* C, size_t K, size_t N, size_t M) {
-    float32x4_t c0 = vld1q_f32(C + 0 * N);
-    float32x4_t c1 = vld1q_f32(C + 1 * N);
-    float32x4_t c2 = vld1q_f32(C + 2 * N);
-    float32x4_t c3 = vld1q_f32(C + 3 * N);
-    
-    for (size_t k = 0; k < K; ++k) {
-        float32x4_t b_vec = vld1q_f32(B + k * N);
-        
-        float32x4_t a0 = vdupq_n_f32(A[0 * K + k]);
-        float32x4_t a1 = vdupq_n_f32(A[1 * K + k]);
-        float32x4_t a2 = vdupq_n_f32(A[2 * K + k]);
-        float32x4_t a3 = vdupq_n_f32(A[3 * K + k]);
-        
-        c0 = vmlaq_f32(c0, a0, b_vec);
-        c1 = vmlaq_f32(c1, a1, b_vec);
-        c2 = vmlaq_f32(c2, a2, b_vec);
-        c3 = vmlaq_f32(c3, a3, b_vec);
-    }
-    
-    vst1q_f32(C + 0 * N, c0);
-    vst1q_f32(C + 1 * N, c1);
-    vst1q_f32(C + 2 * N, c2);
-    vst1q_f32(C + 3 * N, c3);
-}
-
 void gemm_neon(const float* A, const float* B, float* C, size_t M, size_t K, size_t N, float alpha, float beta) {
     if (beta == 0.0f) {
         std::fill_n(C, M * N, 0.0f);
