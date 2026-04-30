@@ -39,11 +39,11 @@ void gemm_neon(const float* A, const float* B, float* C, size_t M, size_t K, siz
                         
                         for (size_t kk = k; kk < k_max; ++kk) {
                             float32x4_t b_vec = vld1q_f32(&B[kk * N + jj]);
-                            
-                            c0 = vmlaq_f32(c0, vdupq_n_f32(alpha * A[ii * K + kk]), b_vec);
-                            c1 = vmlaq_f32(c1, vdupq_n_f32(alpha * A[(ii + 1) * K + kk]), b_vec);
-                            c2 = vmlaq_f32(c2, vdupq_n_f32(alpha * A[(ii + 2) * K + kk]), b_vec);
-                            c3 = vmlaq_f32(c3, vdupq_n_f32(alpha * A[(ii + 3) * K + kk]), b_vec);
+
+                            c0 = vfmaq_f32(c0, vdupq_n_f32(alpha * A[ii * K + kk]), b_vec);
+                            c1 = vfmaq_f32(c1, vdupq_n_f32(alpha * A[(ii + 1) * K + kk]), b_vec);
+                            c2 = vfmaq_f32(c2, vdupq_n_f32(alpha * A[(ii + 2) * K + kk]), b_vec);
+                            c3 = vfmaq_f32(c3, vdupq_n_f32(alpha * A[(ii + 3) * K + kk]), b_vec);
                         }
                         
                         vst1q_f32(&C[ii * N + jj], c0);
@@ -79,7 +79,7 @@ void gemm_neon(const float* A, const float* B, float* C, size_t M, size_t K, siz
                         for (; jj + 3 < j_max; jj += 4) {
                             float32x4_t b_vec = vld1q_f32(&B[kk * N + jj]);
                             float32x4_t c_vec = vld1q_f32(&C[ii * N + jj]);
-                            c_vec = vmlaq_f32(c_vec, a_vec, b_vec);
+                            c_vec = vfmaq_f32(c_vec, a_vec, b_vec);
                             vst1q_f32(&C[ii * N + jj], c_vec);
                         }
                         
