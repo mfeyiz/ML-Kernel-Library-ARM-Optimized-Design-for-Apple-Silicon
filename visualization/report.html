@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>arm_gemm_apple — Benchmark Report</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#0a0c0f;--surface:#111418;--surface2:#181c22;--border:#1e2530;
+  --accent:#00e5a0;--accent2:#3b82f6;--accent3:#f59e0b;--accent4:#ef4444;--accent5:#a855f7;
+  --text:#e8edf2;--muted:#4a5568;--mono:'IBM Plex Mono',monospace;--sans:'IBM Plex Sans',sans-serif;
+}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh;}
+.wrap{max-width:900px;margin:0 auto;padding:2rem 1.5rem;}
+.header{border-bottom:1px solid var(--border);padding-bottom:1.25rem;margin-bottom:2rem;}
+.header h1{font-family:var(--mono);font-size:18px;font-weight:600;color:var(--accent);letter-spacing:0.04em;margin-bottom:6px;}
+.header .meta{font-family:var(--mono);font-size:11px;color:var(--muted);display:flex;gap:16px;flex-wrap:wrap;}
+.badge{font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:3px;border:1px solid;}
+.badge-g{color:var(--accent);border-color:var(--accent);}
+.badge-b{color:var(--accent2);border-color:var(--accent2);}
+.badge-a{color:var(--accent3);border-color:var(--accent3);}
+
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:2rem;}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:14px 16px;position:relative;overflow:hidden;}
+.kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--kc,var(--accent));}
+.kpi .lbl{font-size:10px;color:var(--muted);font-family:var(--mono);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;}
+.kpi .val{font-family:var(--mono);font-size:24px;font-weight:600;color:var(--text);}
+.kpi .unit{font-size:11px;color:var(--muted);margin-top:2px;}
+
+.section{margin-bottom:2.5rem;}
+.section-title{font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:1rem;padding-bottom:6px;border-bottom:1px solid var(--border);}
+.chart-card{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:20px;}
+.chart-wrap{position:relative;width:100%;}
+.legend{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:14px;}
+.legend span{display:flex;align-items:center;gap:5px;font-size:11px;font-family:var(--mono);color:var(--muted);}
+.ld{width:8px;height:8px;border-radius:1px;flex-shrink:0;}
+
+.analysis{font-family:var(--mono);font-size:11px;color:var(--muted);line-height:1.8;background:var(--surface2);border-left:2px solid var(--border);padding:12px 16px;border-radius:0 4px 4px 0;margin-top:1rem;}
+.hi{color:var(--accent);}
+.warn{color:var(--accent3);}
+.bad{color:var(--accent4);}
+
+.controls{display:flex;align-items:center;gap:12px;margin-bottom:1rem;flex-wrap:wrap;}
+.ctrl-label{font-family:var(--mono);font-size:11px;color:var(--muted);white-space:nowrap;}
+.ctrl-val{font-family:var(--mono);font-size:11px;color:var(--accent);min-width:40px;}
+input[type=range]{flex:1;min-width:120px;-webkit-appearance:none;height:3px;background:var(--border);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--accent);cursor:pointer;}
+
+.tabs{display:flex;gap:0;margin-bottom:1.5rem;border:1px solid var(--border);border-radius:6px;overflow:hidden;width:fit-content;}
+.tab{padding:7px 16px;background:transparent;border:none;cursor:pointer;font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:0.04em;transition:all 0.15s;}
+.tab:not(:last-child){border-right:1px solid var(--border);}
+.tab.active{background:var(--surface2);color:var(--accent);}
+.hidden{display:none;}
+
+footer{font-family:var(--mono);font-size:10px;color:var(--muted);text-align:center;padding:2rem 0 1rem;border-top:1px solid var(--border);margin-top:3rem;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <h1>arm_gemm_apple &mdash; Benchmark Report</h1>
+    <div class="meta">
+      <span>Generated: 2026-05-01T00:31:53</span>
+      <span class="badge badge-g">Apple Silicon · arm64</span>
+      <span class="badge badge-b">FP32 GEMM</span>
+      <span class="badge badge-a">macOS / Accelerate</span>
+    </div>
+  </div>
+
+  <div class="kpi-row">
+    <div class="kpi" style="--kc:var(--accent4)"><div class="lbl">gemm_naive</div><div class="val">27</div><div class="unit">GFLOPS @ 1024</div></div>
+    <div class="kpi" style="--kc:var(--accent3)"><div class="lbl">gemm_neon</div><div class="val">44</div><div class="unit">GFLOPS @ 1024</div></div>
+    <div class="kpi" style="--kc:var(--accent2)"><div class="lbl">gemm_mt</div><div class="val">179</div><div class="unit">GFLOPS @ 1024</div></div>
+    <div class="kpi" style="--kc:var(--accent)"><div class="lbl">Accelerate</div><div class="val">2147</div><div class="unit">GFLOPS @ 1024</div></div>
+    <div class="kpi" style="--kc:var(--accent5)"><div class="lbl">mt / accel</div><div class="val">8.3</div><div class="unit">% of ceiling</div></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">GFLOPS comparison — all kernels</div>
+    <div class="controls">
+      <span class="ctrl-label">Y axis:</span>
+      <input type="range" id="ymode" min="0" max="1" value="1" step="1" oninput="setYMode(this.value)">
+      <span class="ctrl-val" id="ymode-lbl">log</span>
+      <span class="ctrl-label" style="margin-left:16px;">Run variation ±</span>
+      <input type="range" id="noise" min="0" max="15" value="0" step="1" oninput="setNoise(this.value)">
+      <span class="ctrl-val" id="noise-lbl">0%</span>
+    </div>
+    <div class="chart-card">
+      <div class="legend">
+        <span><span class="ld" style="background:#888;"></span>naive</span>
+        <span><span class="ld" style="background:#60a5fa;"></span>tiled</span>
+        <span><span class="ld" style="background:#4ade80;"></span>neon</span>
+        <span><span class="ld" style="background:#fb923c;"></span>mt</span>
+        <span><span class="ld" style="background:#c084fc;"></span>accelerate</span>
+      </div>
+      <div class="chart-wrap" style="height:300px;"><canvas id="gChart" role="img" aria-label="GFLOPS comparison for all kernels">GFLOPS by matrix size for naive, tiled, neon, mt, accelerate kernels.</canvas></div>
+    </div>
+    <div class="analysis">
+      <span class="hi">▶ gemm_mt</span> reaches <span class="hi">179 GFLOPS</span> at 1024 — <span class="warn">6.75× vs naive</span>, but only <span class="bad">8.3% of Accelerate</span>.<br>
+      <span class="warn">▶ gemm_tiled</span> underperforms naive — packing overhead dominates at these sizes. Tune block size (try 32 or 128).<br>
+      <span class="hi">▶ Accelerate</span> uses the AMX coprocessor + hand-tuned assembly; serves as a practical performance ceiling.
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Speedup vs naive</div>
+    <div class="controls">
+      <span class="ctrl-label">Matrix size N:</span>
+      <input type="range" id="sizeSlider" min="0" max="4" value="4" step="1" oninput="updateSpeedup(this.value)">
+      <span class="ctrl-val" id="size-lbl">1024</span>
+    </div>
+    <div class="chart-card">
+      <div class="chart-wrap" style="height:260px;"><canvas id="suChart" role="img" aria-label="Speedup relative to naive baseline">Speedup relative to naive for selected matrix size.</canvas></div>
+    </div>
+    <div class="analysis" id="su-analysis"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Activation kernels</div>
+    <div class="chart-card">
+      <div class="legend">
+        <span><span class="ld" style="background:#60a5fa;"></span>ReLU (arm_gemm)</span>
+        <span><span class="ld" style="background:#ef4444;"></span>Sigmoid (arm_gemm)</span>
+        <span><span class="ld" style="background:#888;"></span>NumPy ReLU</span>
+      </div>
+      <div class="chart-wrap" style="height:260px;"><canvas id="aChart" role="img" aria-label="Activation kernel elapsed time vs element count">ReLU, Sigmoid, NumPy ReLU timing from 1K to 10M elements.</canvas></div>
+    </div>
+    <div class="analysis">
+      <span class="hi">▶ ReLU</span> at 10M: <span class="hi">0.8ms</span> — NEON-vectorized, outperforms NumPy.<br>
+      <span class="bad">▶ Sigmoid</span> at 10M: <span class="bad">4.0ms</span> — exp() is scalar per element; ~5.0× slower than ReLU.<br>
+      <span class="warn">▶ NumPy ReLU</span> at 10M: <span class="warn">4.6ms</span>.
+    </div>
+  </div>
+
+  
+  <div class="section">
+    <div class="section-title">Batch inference — 512→256→10</div>
+    <div class="chart-card">
+      <div class="chart-wrap" style="height:260px;"><canvas id="bChart" role="img" aria-label="Batch inference throughput">Throughput in samples/s for batch sizes 1 to 256.</canvas></div>
+    </div>
+    <div class="analysis">
+      <span class="hi">▶ Throughput plateaus</span> at batch≥32 — bottleneck shifts from compute to memory bandwidth.<br>
+      <span class="hi">▶ Per-sample latency</span> ~0.01ms for batch≥8: suitable for real-time inference.
+    </div>
+  </div>
+
+
+  <footer>arm_gemm_apple · report generated 2026-05-01T00:31:53 · <a href="https://github.com" style="color:var(--accent2);">repo</a></footer>
+</div>
+
+<script>
+const SIZES = [64, 128, 256, 512, 1024];
+const TIMES = {"naive": [1.7476266666666667e-07, 1.3981013333333334e-06, 0.002, 0.01, 0.081], "tiled": [1.7476266666666667e-07, 1.3981013333333334e-06, 0.002, 0.015, 0.109], "neon": [1.7476266666666667e-07, 1.3981013333333334e-06, 0.001, 0.006, 0.049], "mt": [1.7476266666666667e-07, 1.3981013333333334e-06, 1.1184810666666667e-05, 0.002, 0.012], "accel": [1.7476266666666667e-07, 1.3981013333333334e-06, 1.1184810666666667e-05, 8.947848533333334e-05, 0.001]};
+const ACT   = {"relu": {"1000": 0.0, "10000": 0.0, "100000": 0.0, "1000000": 0.0001, "10000000": 0.0008}, "sigmoid": {"1000": 0.0, "10000": 0.0, "100000": 0.0, "1000000": 0.0004, "10000000": 0.004}, "numpy": {"1000": 0.0, "10000": 0.0, "100000": 0.0, "1000000": 0.0003, "10000000": 0.0046}};
+const BATCH = {"1": {"forward_ms": 0.02, "per_sample_ms": 0.02, "throughput": 59751.0}, "8": {"forward_ms": 0.05, "per_sample_ms": 0.01, "throughput": 154052.0}, "32": {"forward_ms": 0.19, "per_sample_ms": 0.01, "throughput": 166018.0}, "128": {"forward_ms": 0.75, "per_sample_ms": 0.01, "throughput": 170610.0}, "256": {"forward_ms": 1.5, "per_sample_ms": 0.01, "throughput": 170766.0}};
+const COLORS={naive:'#888',tiled:'#60a5fa',neon:'#4ade80',mt:'#fb923c',accel:'#c084fc'};
+const DASHES={naive:[],tiled:[],neon:[],mt:[],accel:[4,3]};
+const gc='rgba(255,255,255,0.06)', tc='#4a5568';
+let noiseLevel=0, yLog=true, sizeIdx=4;
+let gChart=null, suChart=null, aChart=null, bChart=null;
+
+function gflops(n,t){return t>0?2*n*n*n/t/1e9:0;}
+function withNoise(v){if(!noiseLevel)return v;return v*(1+(Math.random()*2-1)*noiseLevel/100);}
+
+function buildGData(){
+  return{
+    labels:SIZES.map(s=>s+''),
+    datasets:Object.keys(TIMES).map(k=>({
+      label:k,
+      data:SIZES.map((n,i)=>parseFloat(withNoise(gflops(n,TIMES[k][i])).toFixed(2))),
+      borderColor:COLORS[k],backgroundColor:'transparent',borderWidth:2,pointRadius:4,
+      borderDash:DASHES[k],tension:0.3,
+    }))
+  };
+}
+function initG(){
+  const ctx=document.getElementById('gChart');
+  if(gChart)gChart.destroy();
+  gChart=new Chart(ctx,{type:'line',data:buildGData(),
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{
+        x:{grid:{color:gc},ticks:{color:tc,font:{family:'IBM Plex Mono',size:11}}},
+        y:{type:yLog?'logarithmic':'linear',grid:{color:gc},
+          ticks:{color:tc,font:{family:'IBM Plex Mono',size:11}},
+          title:{display:true,text:'GFLOPS'+(yLog?' (log)':''),color:tc,font:{size:11}}}
+      }}});
+}
+function setYMode(v){yLog=v==='1';document.getElementById('ymode-lbl').textContent=yLog?'log':'linear';initG();}
+function setNoise(v){noiseLevel=parseInt(v);document.getElementById('noise-lbl').textContent=v+'%';if(gChart){gChart.data=buildGData();gChart.update();}}
+
+function buildSuData(idx){
+  const kernels=Object.keys(TIMES).filter(k=>k!=='naive');
+  const base=TIMES.naive[idx];
+  return{labels:kernels,datasets:[{label:'Speedup',
+    data:kernels.map(k=>parseFloat((base/TIMES[k][idx]).toFixed(2))),
+    backgroundColor:kernels.map(k=>COLORS[k]),borderRadius:3,}]};
+}
+function initSu(idx){
+  const ctx=document.getElementById('suChart');
+  if(suChart)suChart.destroy();
+  suChart=new Chart(ctx,{type:'bar',data:buildSuData(idx),
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},
+      tooltip:{callbacks:{label:c=>c.parsed.y.toFixed(2)+'×'}}},
+      scales:{x:{grid:{color:gc},ticks:{color:tc,font:{family:'IBM Plex Mono',size:11}}},
+        y:{grid:{color:gc},ticks:{color:tc,font:{family:'IBM Plex Mono',size:11},callback:v=>v+'×'},
+          title:{display:true,text:'naive = 1×',color:tc,font:{size:11}}}}}});
+  const N=SIZES[idx];
+  const su=k=>parseFloat((TIMES.naive[idx]/TIMES[k][idx]).toFixed(2));
+  const kernels=Object.keys(TIMES).filter(k=>k!=='naive');
+  document.getElementById('su-analysis').innerHTML=
+    kernels.map(k=>`<span style="color:${COLORS[k]}">▶ ${k}</span>: <span class="hi">${su(k)}×</span> vs naive at N=${N}`).join('<br>');
+}
+function updateSpeedup(v){
+  sizeIdx=parseInt(v);
+  document.getElementById('size-lbl').textContent=SIZES[sizeIdx];
+  initSu(sizeIdx);
+}
+
+function initA(){
+  const ctx=document.getElementById('aChart');
+  const sizes_act=Object.keys(ACT.relu).map(Number).sort((a,b)=>a-b);
+  const fmt=n=>n>=1e6?(n/1e6).toFixed(0)+'M':n>=1e3?(n/1e3).toFixed(0)+'K':n+'';
+  if(aChart)aChart.destroy();
+  aChart=new Chart(ctx,{type:'line',data:{
+    labels:sizes_act.map(fmt),
+    datasets:[
+      {label:'ReLU',data:sizes_act.map(n=>ACT.relu[n]||0),borderColor:'#60a5fa',backgroundColor:'transparent',borderWidth:2,pointRadius:4},
+      {label:'Sigmoid',data:sizes_act.map(n=>ACT.sigmoid[n]||0),borderColor:'#ef4444',backgroundColor:'transparent',borderWidth:2,pointRadius:4},
+      {label:'NumPy',data:sizes_act.map(n=>ACT.numpy[n]||0),borderColor:'#888',backgroundColor:'transparent',borderWidth:2,pointRadius:4,borderDash:[4,3]},
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{
+        x:{grid:{color:gc},ticks:{color:tc,font:{family:'IBM Plex Mono',size:11}}},
+        y:{type:'logarithmic',grid:{color:gc},ticks:{color:tc,font:{family:'IBM Plex Mono',size:11}},
+          title:{display:true,text:'elapsed (s, log)',color:tc,font:{size:11}}}
+      }}});
+}
+
+function initBatch(){
+  const el=document.getElementById('bChart');
+  if(!el||!BATCH||Object.keys(BATCH).length===0)return;
+  const batches=Object.keys(BATCH).map(Number).sort((a,b)=>a-b);
+  if(bChart)bChart.destroy();
+  bChart=new Chart(el,{type:'bar',data:{
+    labels:batches.map(b=>'batch='+b),
+    datasets:[{label:'samples/s',data:batches.map(b=>BATCH[b].throughput),backgroundColor:'#00e5a0',borderRadius:3}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},
+      tooltip:{callbacks:{label:c=>c.parsed.y.toLocaleString()+' samples/s'}}},
+      scales:{x:{grid:{color:gc},ticks:{color:tc,font:{family:'IBM Plex Mono',size:11}}},
+        y:{grid:{color:gc},ticks:{color:tc,font:{family:'IBM Plex Mono',size:11},callback:v=>(v/1000).toFixed(0)+'K'},
+          title:{display:true,text:'samples/s',color:tc,font:{size:11}}}}}});
+}
+
+initG(); initSu(4); initA(); initBatch();
+</script>
+</body>
+</html>

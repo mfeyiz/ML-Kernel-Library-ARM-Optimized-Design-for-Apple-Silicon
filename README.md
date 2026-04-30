@@ -91,6 +91,9 @@ PYTHONPATH=build python3 tests/benchmark_only.py
 cat benchmark_results.txt
 ```
 
+Optional: `python3 generate_report.py` writes `visualization/report.html` (use
+`--no-run` to skip re-running benchmarks).
+
 ## C++ benchmark (with Instruments-friendly signposts)
 
 The C++ GEMM benchmark prints a table and emits `os_signpost` intervals around
@@ -155,4 +158,7 @@ tests/
 	test_python_bridge.py
 	benchmark_only.py
 	ml_demo.py
+generate_report.py
+visualization/
+	report.html (generated)
 ```
